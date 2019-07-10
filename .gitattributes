@@ -1,0 +1,4 @@
+Dependencies/** linguist-vendored
+glad.c linguist-vendored
+
+Dependencies/Include/shaders.h linguist-vendored = false
