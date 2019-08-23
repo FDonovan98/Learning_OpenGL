@@ -1,0 +1,5 @@
+**/Dependencies/** linguist-vendored
+**/glad.c linguist-vendored
+**/Dependencies/Include/shaders.h linguist-vendored=false
+**/Dependencies/Include/camera.h linguist-vendored=false
+**/Dependencies/Shaders/** linguist-vendored=false
