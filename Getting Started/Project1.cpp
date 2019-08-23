@@ -5,6 +5,7 @@
 #include <GLFW\glfw3.h>
 
 #include <shaders.h>
+#include <camera.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -18,11 +19,9 @@ using namespace std;
 //Initialise global variables
 float mixStrength = 0.5;
 
-float fov = 45.0f;
-
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+//float gForce = 5;
+bool jumping = false;
+bool falling = false;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -31,8 +30,8 @@ bool firstMouse = true;
 
 float lastX = 0.0f;
 float lastY = 0.0f;
-float yaw = -90.0f;
-float pitch = 0.0f;
+
+Camera camera;
 
 //resizes the window if the user changes its size
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)  {
@@ -47,37 +46,19 @@ void mouse_callback(GLFWwindow* window, double xPos, double yPos) {
         firstMouse = false;
     }
 
-    float xOffset = xPos - lastX;
-    float yOffset = yPos - lastY;
+    double xOffset = xPos - lastX;
+    double yOffset = yPos - lastY;
+
     lastX = xPos;
     lastY = yPos;
 
-    float sensitivity = 0.2f;
-    xOffset *= sensitivity;
-    yOffset *= sensitivity;
-
-    yaw += xOffset;
-    pitch -= yOffset;
-
-    if(pitch > 89.0f)
-        pitch = 89.0f;
-    if(pitch < -89.0f)
-        pitch = -89.0f;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(pitch)) * cos(glm::radians(yaw));
-    front.y = sin(glm::radians(pitch));
-    front.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
-    cameraFront = glm::normalize(front);
+    camera.processMouseMovement(xOffset, yOffset);
+    
 }
 
 void scroll_callback(GLFWwindow* window, double xOffset, double yOffset) {
-    fov -= yOffset;
-
-    if(fov < 1.0f)
-  	    fov = 1.0f;
-    if(fov > 45.0f)
-  	    fov = 45.0f;
+    
+    camera.processMouseScroll(yOffset);
 }
 
 //interprets key presses
@@ -98,18 +79,20 @@ void processInput(GLFWwindow *window) {
         }
     }  
     //camera position
-    float cameraSpeed = 3.0f * deltaTime;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        cameraPos += cameraSpeed * cameraFront;
+        camera.processKeyboardInput(FORWARD, deltaTime);
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        cameraPos -= cameraSpeed * cameraFront;
+        camera.processKeyboardInput(BACKWARD, deltaTime);
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        camera.processKeyboardInput(LEFT, deltaTime);
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        camera.processKeyboardInput(RIGHT, deltaTime);
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        camera.processKeyboardInput(JUMP, deltaTime);
     }
 }
 
@@ -140,8 +123,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         cout << "Failed to initialize GLAD" << endl;
         return -1;
     }
-
-    glViewport(0, 0, 800, 600);
 
     glEnable(GL_DEPTH_TEST);
 
@@ -287,10 +268,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     transformShader.setInt("texture1", 0);
     transformShader.setInt("texture2", 1);
 
-    unsigned int modelLoc = glGetUniformLocation(transformShader.ID, "model");
-    unsigned int viewLoc = glGetUniformLocation(transformShader.ID, "view");
-    unsigned int projectionLoc = glGetUniformLocation(transformShader.ID, "projection");
-
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     //render loop
@@ -301,6 +278,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         //reads any key inputs
         processInput(window);
+        camera.jump(2, camera.MovementSpeed, deltaTime);
 
         //sets the colour of clear pixels
         glClearColor(0.2, 0.3, 0.3, 1.0);
@@ -313,12 +291,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         //Sets mixStrength
         transformShader.setFloat("mixStrength", mixStrength);
 
-        glm::mat4 view = glm::mat4(1.0f);
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        glm::mat4 view = camera.getViewMatrix();
         transformShader.setMat4("view", view);
 
-        glm::mat4 projection = glm::mat4(1.0f);
-        projection = glm::perspective(glm::radians(fov), (float)width / (float)height, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Fov), (float)width / (float)height, 0.1f, 100.0f);
         transformShader.setMat4("projection", projection);
 
         glBindVertexArray(VAO);
